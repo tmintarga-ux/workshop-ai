@@ -89,7 +89,7 @@ export default function PusatDataPage() {
           </div>
           <div className="empty-state-title">Tarik &amp; lepas file Excel di sini</div>
           <div className="empty-state-body">
-            .xlsx, .xls, .csv — bisa banyak file sekaligus. File disimpan ke Vercel Blob dan dicatat otomatis di riwayat di bawah.
+            .xlsx, .xls, .csv — bisa banyak file sekaligus. File disimpan secara privat ke Vercel Blob dan dicatat otomatis di riwayat di bawah.
           </div>
           <input
             ref={inputRef}
@@ -157,15 +157,7 @@ export default function PusatDataPage() {
                 )}
                 {uploads.map((u) => (
                   <tr key={u.id ?? u.nama}>
-                    <td className="col-label">
-                      {u.blobUrl ? (
-                        <a href={u.blobUrl} target="_blank" rel="noreferrer">
-                          {u.nama}
-                        </a>
-                      ) : (
-                        u.nama
-                      )}
-                    </td>
+                    <td className="col-label">{u.nama}</td>
                     <td className="col-label">{u.jenis}</td>
                     <td className="col-label">{u.periode}</td>
                     <td>{fmtInt(u.baris)}</td>

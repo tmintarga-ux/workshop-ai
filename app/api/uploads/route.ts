@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const jenis = typeof jenisRaw === "string" && JENIS_ALLOWED.has(jenisRaw) ? jenisRaw : "Produksi Estate–Divisi";
 
   const blob = await put(`pusat-data/${Date.now()}-${file.name}`, file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
   });
 
