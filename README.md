@@ -29,6 +29,28 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Database (Neon) & file storage (Vercel Blob)
+
+Data operasional (estate, divisi, tren produksi, forecast, alert, riwayat unggahan)
+disimpan di Neon (Postgres) lewat `@neondatabase/serverless`, dan file yang diunggah
+di halaman Pusat Data disimpan di Vercel Blob lewat `@vercel/blob`.
+
+Kedua integrasi ini sudah terhubung di project Vercel, yang otomatis menyuntikkan
+`DATABASE_URL` dan `BLOB_READ_WRITE_TOKEN` saat build/runtime di Vercel — tidak perlu
+diisi manual di sana.
+
+Untuk development lokal:
+
+```bash
+vercel env pull .env.local   # tarik DATABASE_URL & BLOB_READ_WRITE_TOKEN dari project Vercel
+npm run db:migrate           # buat tabel (idempotent, aman dijalankan ulang)
+npm run db:seed              # isi data contoh (menimpa isi tabel dengan data awal)
+npm run dev
+```
+
+`db/schema.sql` adalah sumber kebenaran skema; `db/seed.mts` mengisi data contoh yang
+identik dengan mockup awal supaya tampilan dashboard tidak berubah setelah migrasi ke DB.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

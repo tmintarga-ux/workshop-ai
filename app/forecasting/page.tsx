@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { Pill } from "@/components/Kpi";
 import { ForecastChart, type ForecastPoint } from "@/components/charts/ForecastChart";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Slider } from "@/components/Slider";
-import { accuracy, forecastTable, monthlyTrend, semaphoreAchBudget, kecukupanTotal } from "@/lib/data";
+import {
+  semaphoreAchBudget,
+  type Accuracy,
+  type BulanTrend,
+  type ForecastRow,
+  type KecukupanTotal,
+} from "@/lib/data";
 import { fmtDec, fmtInt } from "@/lib/format";
 
 const METHODS = [
@@ -18,32 +24,54 @@ const METHODS = [
 
 const HORIZONS = [3, 6, 12] as const;
 const BASE_FACTOR = 0.94;
-const BUDGET_FOR_FORECAST: (number | null)[] = [
-  ...monthlyTrend.slice(7, 12).map((m) => m.budget),
-  null,
-  null,
-  null,
-  null,
-  null,
-  null,
-];
+
+type ForecastingData = {
+  forecastTable: ForecastRow[];
+  monthlyTrend: BulanTrend[];
+  accuracy: Accuracy;
+  kecukupanTotal: KecukupanTotal;
+};
 
 export default function ForecastingPage() {
+  const [data, setData] = useState<ForecastingData | null>(null);
   const [method, setMethod] = useState<(typeof METHODS)[number]["id"]>("tren");
   const [horizon, setHorizon] = useState<(typeof HORIZONS)[number]>(6);
   const [factor, setFactor] = useState(BASE_FACTOR);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/forecasting")
+      .then((res) => res.json())
+      .then((d) => {
+        if (!cancelled) setData(d);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const forecastTable = useMemo(() => data?.forecastTable ?? [], [data]);
+  const monthlyTrend = useMemo(() => data?.monthlyTrend ?? [], [data]);
+  const accuracy = data?.accuracy ?? null;
+  const kecukupanTotal = data?.kecukupanTotal ?? null;
+
+  const budgetForForecast: (number | null)[] = useMemo(
+    () => [...monthlyTrend.slice(7, 12).map((m) => m.budget), null, null, null, null, null, null],
+    [monthlyTrend]
+  );
+
   const scaledRows = useMemo(() => {
+    if (!kecukupanTotal) return [];
     const ratio = factor / BASE_FACTOR;
     return forecastTable.slice(0, horizon).map((row, i) => {
       const ton = Math.round(row.ton * ratio);
       const janjangRb = Math.round(row.janjangRb * ratio);
       const tonPerHa = Math.round((ton / kecukupanTotal.luasTM) * 100) / 100;
-      const budget = BUDGET_FOR_FORECAST[i];
+      const budget = budgetForForecast[i];
       const vsBudget = budget ? Math.round((ton / budget) * 1000) / 10 : null;
       return { ...row, ton, janjangRb, tonPerHa, vsBudget };
     });
-  }, [factor, horizon]);
+  }, [factor, horizon, forecastTable, kecukupanTotal, budgetForForecast]);
 
   const totals = scaledRows.reduce(
     (acc, r) => ({
@@ -69,13 +97,23 @@ export default function ForecastingPage() {
       actualMonths[actualMonths.length - 1] = { ...actualMonths[actualMonths.length - 1], forecast: actualMonths[actualMonths.length - 1].actual };
     }
     return [...actualMonths, ...forecastMonths];
-  }, [scaledRows]);
+  }, [scaledRows, monthlyTrend]);
 
   const deltaPct = Math.round((1 - factor) * 100);
   const factorNote =
     deltaPct > 0
       ? `Menurunkan proyeksi ${deltaPct}% untuk restan & buah tinggal — sesuai rata-rata 3 tahun.`
       : "Tidak ada koreksi turun — proyeksi memakai angka mentah model.";
+
+  if (!data || !accuracy || !kecukupanTotal) {
+    return (
+      <AppShell title="Forecasting Produksi" sidebarFooter="histori">
+        <div className="card empty-state" style={{ flex: 1 }}>
+          <div className="empty-state-title">Memuat data dari database…</div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Forecasting Produksi" sidebarFooter="histori">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { AlertPanel } from "@/components/AlertPanel";
@@ -7,17 +8,17 @@ import { KpiCard, Pill } from "@/components/Kpi";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { useFilters } from "@/lib/filters";
 import {
-  alerts,
-  estateTotal,
-  estates,
   formulaKpi,
-  monthlyTrend,
-  periode,
   semaphoreAchBudget,
   semaphoreHKE,
   semaphoreKecukupanTK,
   thresholds,
-  uploads,
+  type Alert,
+  type BulanTrend,
+  type EstateRow,
+  type EstateTotal,
+  type Periode,
+  type UploadRow,
 } from "@/lib/data";
 import { fmtDec, fmtInt } from "@/lib/format";
 
@@ -27,8 +28,42 @@ function toneLabel(semaphore: "merah" | "kuning" | "hijau", thresholdRow: (typeo
   return `${cap} · ambang ${range}`;
 }
 
+type DashboardData = {
+  alerts: Alert[];
+  estates: EstateRow[];
+  estateTotal: EstateTotal;
+  monthlyTrend: BulanTrend[];
+  uploads: UploadRow[];
+  periode: Periode;
+};
+
 export default function DashboardPage() {
   const { estateId } = useFilters();
+  const [data, setData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/dashboard")
+      .then((res) => res.json())
+      .then((d) => {
+        if (!cancelled) setData(d);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!data) {
+    return (
+      <AppShell title="Dashboard">
+        <div className="card empty-state" style={{ flex: 1 }}>
+          <div className="empty-state-title">Memuat data dari database…</div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const { alerts, estates, estateTotal, monthlyTrend, uploads, periode } = data;
   const selected = estateId === "all" ? null : estates.find((e) => e.id === estateId);
 
   const produksi = selected ? selected.ton : estateTotal.ton;

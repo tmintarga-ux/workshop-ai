@@ -1,43 +1,78 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { KpiCard, Pill } from "@/components/Kpi";
 import { ProjectionChart } from "@/components/charts/ProjectionChart";
 import { Slider } from "@/components/Slider";
 import { useFilters } from "@/lib/filters";
-import { divisions, formulaKpi, kecukupanBaseline, kecukupanMonthly, semaphoreKecukupanTK } from "@/lib/data";
+import {
+  formulaKpi,
+  semaphoreKecukupanTK,
+  type DivisiRow,
+  type KecukupanBaseline,
+  type KecukupanMonthly,
+} from "@/lib/data";
 import { fmtDec, fmtInt } from "@/lib/format";
 
 type SortKey = "divisi" | "luasTM" | "kebutuhan" | "tersedia" | "gap" | "kecukupan";
 
+type KecukupanData = {
+  divisions: DivisiRow[];
+  kecukupanBaseline: KecukupanBaseline;
+  kecukupanMonthly: KecukupanMonthly;
+};
+
 export default function KecukupanTenagaPanenPage() {
   const { estateId, divisiId } = useFilters();
-  const [basisBorong, setBasisBorong] = useState(kecukupanBaseline.basisBorong);
-  const [rotasiRencana, setRotasiRencana] = useState(kecukupanBaseline.rotasiRencana);
-  const [hke, setHke] = useState(kecukupanBaseline.hke);
-  const [jumlahPemanen, setJumlahPemanen] = useState(kecukupanBaseline.jumlahPemanen);
+  const [data, setData] = useState<KecukupanData | null>(null);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "kecukupan", dir: 1 });
+  const [basisBorong, setBasisBorong] = useState<number | null>(null);
+  const [rotasiRencana, setRotasiRencana] = useState<number | null>(null);
+  const [hke, setHke] = useState<number | null>(null);
+  const [jumlahPemanen, setJumlahPemanen] = useState<number | null>(null);
 
-  const kebutuhan = Math.round(
-    kecukupanBaseline.kebutuhan * (kecukupanBaseline.basisBorong / basisBorong) * (kecukupanBaseline.rotasiRencana / rotasiRencana)
-  );
-  const efektif = Math.round(jumlahPemanen * (hke / 100));
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/kecukupan-tenaga-panen")
+      .then((res) => res.json())
+      .then((d: KecukupanData) => {
+        if (cancelled) return;
+        setData(d);
+        setBasisBorong(d.kecukupanBaseline.basisBorong);
+        setRotasiRencana(d.kecukupanBaseline.rotasiRencana);
+        setHke(d.kecukupanBaseline.hke);
+        setJumlahPemanen(d.kecukupanBaseline.jumlahPemanen);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const divisions = useMemo(() => data?.divisions ?? [], [data]);
+  const kecukupanBaseline = data?.kecukupanBaseline ?? null;
+  const kecukupanMonthly = data?.kecukupanMonthly ?? null;
+
+  const kebutuhan =
+    kecukupanBaseline && basisBorong != null && rotasiRencana != null
+      ? Math.round(kecukupanBaseline.kebutuhan * (kecukupanBaseline.basisBorong / basisBorong) * (kecukupanBaseline.rotasiRencana / rotasiRencana))
+      : 0;
+  const efektif = jumlahPemanen != null && hke != null ? Math.round(jumlahPemanen * (hke / 100)) : 0;
   const gap = kebutuhan - efektif;
-  const potensiTon = Math.round(Math.max(gap, 0) * basisBorong * rotasiRencana) / 1000;
-  const rotasiAktual = Math.round(rotasiRencana * (kebutuhan / efektif) * 1.111 * 10) / 10;
+  const potensiTon = basisBorong != null && rotasiRencana != null ? Math.round(Math.max(gap, 0) * basisBorong * rotasiRencana) / 1000 : 0;
+  const rotasiAktual = rotasiRencana != null && efektif > 0 ? Math.round(rotasiRencana * (kebutuhan / efektif) * 1.111 * 10) / 10 : 0;
 
-  const kebutuhanRatio = kebutuhan / kecukupanBaseline.kebutuhan;
-  const efektifRatio = efektif / kecukupanBaseline.efektif;
+  const kebutuhanRatio = kecukupanBaseline ? kebutuhan / kecukupanBaseline.kebutuhan : 1;
+  const efektifRatio = kecukupanBaseline ? efektif / kecukupanBaseline.efektif : 1;
   // Kecukupan% dijaga anchor ke baseline mockup (78,9%) lalu diskalakan proporsional
   // terhadap perubahan slider, alih-alih efektif/kebutuhan mentah (yang punya
   // pembulatan berbeda di sumber aslinya).
-  const kecukupan = Math.round(kecukupanBaseline.kecukupan * (efektifRatio / kebutuhanRatio) * 10) / 10;
-  const scaledKebutuhan = kecukupanMonthly.kebutuhan.map((v) => Math.round(v * kebutuhanRatio));
-  const scaledTersedia = kecukupanMonthly.tersediaEfektif.map((v) => Math.round(v * efektifRatio));
+  const kecukupan = kecukupanBaseline ? Math.round(kecukupanBaseline.kecukupan * (efektifRatio / kebutuhanRatio) * 10) / 10 : 0;
+  const scaledKebutuhan = kecukupanMonthly ? kecukupanMonthly.kebutuhan.map((v) => Math.round(v * kebutuhanRatio)) : [];
+  const scaledTersedia = kecukupanMonthly ? kecukupanMonthly.tersediaEfektif.map((v) => Math.round(v * efektifRatio)) : [];
 
   const tKecukupan = semaphoreKecukupanTK(kecukupan);
-  const tRotasi = rotasiAktual > rotasiRencana + 0.5 ? "kuning" : "hijau";
+  const tRotasi = rotasiRencana != null && rotasiAktual > rotasiRencana + 0.5 ? "kuning" : "hijau";
 
   const filteredDivisions = useMemo(() => {
     let rows = divisions;
@@ -54,7 +89,7 @@ export default function KecukupanTenagaPanenPage() {
       return ((av as number) - (bv as number)) * sort.dir;
     });
     return sorted;
-  }, [estateId, divisiId, sort]);
+  }, [divisions, estateId, divisiId, sort]);
 
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }));
 
@@ -64,6 +99,16 @@ export default function KecukupanTenagaPanenPage() {
   const totalEfektif = filteredDivisions.reduce((s, d) => s + d.efektif, 0);
   const totalGap = totalKebutuhan - totalEfektif;
   const totalKecukupan = Math.round((totalEfektif / totalKebutuhan) * 1000) / 10;
+
+  if (!data || !kecukupanBaseline || !kecukupanMonthly || basisBorong == null || rotasiRencana == null || hke == null || jumlahPemanen == null) {
+    return (
+      <AppShell title="Kecukupan Tenaga Panen">
+        <div className="card empty-state" style={{ flex: 1 }}>
+          <div className="empty-state-title">Memuat data dari database…</div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Kecukupan Tenaga Panen">

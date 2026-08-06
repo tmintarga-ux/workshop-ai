@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,7 +13,7 @@ import {
   IconPusatData,
   IconChevronLeft,
 } from "./icons";
-import { periode } from "@/lib/data";
+import type { Periode } from "@/lib/data";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
@@ -36,6 +37,20 @@ export function Sidebar({
   footer?: "periode" | "histori" | "none";
 }) {
   const pathname = usePathname();
+  const [periode, setPeriode] = useState<Periode | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/meta")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setPeriode(data.periode);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <aside
@@ -69,15 +84,15 @@ export function Sidebar({
           {footer === "periode" ? (
             <>
               <div className="sidebar-footer-label">Periode data</div>
-              <div className="sidebar-footer-value">{periode.aktif}</div>
+              <div className="sidebar-footer-value">{periode?.aktif ?? "…"}</div>
               <div className="sidebar-footer-meta">
-                terbit {periode.terbit} · {periode.fileCount} file
+                {periode ? `terbit ${periode.terbit} · ${periode.fileCount} file` : "memuat…"}
               </div>
             </>
           ) : (
             <>
               <div className="sidebar-footer-label">Histori tersedia</div>
-              <div className="sidebar-footer-value">{periode.historiBulan} bulan</div>
+              <div className="sidebar-footer-value">{periode ? `${periode.historiBulan} bulan` : "…"}</div>
               <div className="sidebar-footer-meta">cukup untuk musiman (min. 24)</div>
             </>
           )}

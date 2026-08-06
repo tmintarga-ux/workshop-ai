@@ -1,7 +1,6 @@
 "use client";
 
-import { hierarki } from "@/lib/data";
-import { useFilters, useEstateOptions, useDivisiOptions, usePeriodOptions } from "@/lib/filters";
+import { useFilters, useEstateOptions, useDivisiOptions, usePeriodOptions, useHierarki } from "@/lib/filters";
 import { useTheme } from "@/lib/theme";
 import { IconMenu, IconSun, IconMoon } from "./icons";
 
@@ -19,6 +18,7 @@ export function Topbar({ title, onOpenMobile }: { title: string; onOpenMobile: (
   const estateOptions = useEstateOptions();
   const divisiOptions = useDivisiOptions(estateId);
   const periodOptions = usePeriodOptions();
+  const hierarki = useHierarki();
   const { theme, toggle } = useTheme();
 
   return (
